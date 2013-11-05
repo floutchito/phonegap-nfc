@@ -180,40 +180,50 @@ public class NfcPlugin extends CordovaPlugin implements NfcAdapter.OnNdefPushCom
         if (getIntent() == null) {  // TODO remove this and handle LostTag
             callbackContext.error("Failed to write tag, received null intent");
         }
-
-        Tag tag = savedIntent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-        NdefRecord[] records = Util.jsonToNdefRecords(data.getString(0));
-        writeNdefMessage(new NdefMessage(records), tag, callbackContext);
+        else{
+        	Tag tag = savedIntent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+            NdefRecord[] records = Util.jsonToNdefRecords(data.getString(0));
+            writeNdefMessage(new NdefMessage(records), tag, callbackContext);
+        }
     }
 
     private void writeNdefMessage(final NdefMessage message, final Tag tag, final CallbackContext callbackContext) {
-        cordova.getThreadPool().execute(new Runnable() {
+        cordova.getThreadPool().execute( new Runnable() {
             @Override
             public void run() {
                 try {
                     Ndef ndef = Ndef.get(tag);
                     if (ndef != null) {
                         ndef.connect();
-
-                        if (ndef.isWritable()) {
-                            int size = message.toByteArray().length;
-                            if (ndef.getMaxSize() < size) {
-                                callbackContext.error("Tag capacity is " + ndef.getMaxSize() +
-                                        " bytes, message is " + size + " bytes.");
+                        
+                        if(ndef.isConnected()){
+                        	if (ndef.isWritable()) {
+                                int size = message.toByteArray().length;
+                                if (ndef.getMaxSize() < size) {
+                                    callbackContext.error("Tag capacity is " + ndef.getMaxSize() +
+                                            " bytes, message is " + size + " bytes.");
+                                } else {
+                                    ndef.writeNdefMessage(message);
+                                    callbackContext.success();
+                                }
                             } else {
-                                ndef.writeNdefMessage(message);
-                                callbackContext.success();
+                                callbackContext.error("Tag is read only");
                             }
                         } else {
-                            callbackContext.error("Tag is read only");
+                            callbackContext.error("Tag is not in field");
                         }
+                        
                         ndef.close();
                     } else {
                         NdefFormatable formatable = NdefFormatable.get(tag);
                         if (formatable != null) {
                             formatable.connect();
-                            formatable.format(message);
-                            callbackContext.success();
+                            if(ndef.isConnected()){
+                            	formatable.format(message);
+                            	callbackContext.success();
+                            } else {
+                                callbackContext.error("Tag is not in field");
+                            }
                             formatable.close();
                         } else {
                             callbackContext.error("Tag doesn't support NDEF");
